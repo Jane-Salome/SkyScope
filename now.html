@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SkyScope — Weather Dashboard</title>
+<style>
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+  body, html {
+    margin: 0; padding: 0; height: 100%;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow-x: hidden;
+    color: #000;
+    background: linear-gradient(180deg, #FFEE93 0%, #FFC857 40%, #FF7A00 100%);
+  }
+  #app {
+    position: relative;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+  }
+
+  #bgCanvas {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    background: rgba(255 255 255 / 0.15);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255 255 255 / 0.3);
+    z-index: 10;
+  }
+  #logo {
+    display: flex;
+    align-items: center;
+    cursor: default;
+  }
+  #logo svg {
+    width: 40px;
+    height: 40px;
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    fill: none;
+    stroke: #000; /* dynamic by JS */
+    transition: stroke 0.5s ease;
+  }
+  #logo-text {
+    margin-left: 10px;
+    font-weight: 700;
+    font-size: 1.8rem;
+    user-select: none;
+    color: #000; /* dynamic by JS */
+    transition: color 0.5s ease;
+  }
+
+  /* Controls */
+  #controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  input[type="search"] {
+    padding: 0.4rem 0.75rem;
+    border-radius: 12px;
+    border: none;
+    outline: none;
+    font-size: 1rem;
+    width: 220px;
+    background: rgba(255 255 255 / 0.4);
+    color: #111;
+    transition: background-color 0.3s ease;
+  }
+  input[type="search"]::placeholder {
+    color: #666;
+  }
+  input[type="search"]:focus {
+    background: rgba(255 255 255 / 0.7);
+  }
+  button {
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    background: rgba(255 255 255 / 0.4);
+    color: #111;
+    transition: background-color 0.3s ease;
+  }
+  button:hover {
+    background: rgba(255 255 255 / 0.75);
+  }
+
+  /* Unit toggle */
+  #unitToggle {
+    user-select: none;
+    font-weight: 700;
+    background: none;
+    border: 2px solid currentColor;
+    padding: 0.3rem 0.7rem;
+    border-radius: 20px;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    gap: 2rem;
+    padding: 1.5rem 2rem;
+    z-index: 10;
+    flex-wrap: wrap;
+  }
+  #leftCard {
+    flex: 1 1 400px;
+    min-width: 320px;
+    background: rgba(255 255 255 / 0.15);
+    border-radius: 20px;
+    backdrop-filter: blur(15px);
+    box-shadow: 0 4px 30px rgba(255 255 255 / 0.2);
+    padding: 2rem;
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  #location {
+    font-size: 1.8rem;
+    font-weight: 700;
+    user-select: none;
+  }
+  #currentTemp {
+    font-size: 5rem;
+    font-weight: 900;
+    margin: 0;
+    user-select: none;
+  }
+  #weatherDesc {
+    font-size: 1.2rem;
+    font-style: italic;
+    text-transform: capitalize;
+    user-select: none;
+    margin-top: -0.5rem;
+    color: #333;
+  }
+  #currentDetails {
+    display: grid;
+    grid-template-columns: repeat(auto-fit,minmax(90px,1fr));
+    gap: 1rem;
+    font-size: 1rem;
+    color: #444;
+  }
+  .detailItem {
+    background: rgba(255 255 255 / 0.3);
+    padding: 0.6rem 1rem;
+    border-radius: 12px;
+    user-select: none;
+    text-align: center;
+  }
+  .detailLabel {
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+  }
+  .detailValue {
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+  #currentIcon {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto;
+    user-select: none;
+  }
+  #forecast {
+    display: grid;
+    grid-template-columns: repeat(auto-fit,minmax(100px,1fr));
+    gap: 1rem;
+  }
+  .forecastPill {
+    background: rgba(255 255 255 / 0.3);
+    padding: 0.75rem 1rem;
+    border-radius: 18px;
+    text-align: center;
+    user-select: none;
+    color: #222;
+    cursor: default;
+    transition: background-color 0.3s ease;
+  }
+  .forecastPill:hover {
+    background: rgba(255 255 255 / 0.5);
+  }
+  .forecastDay {
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  .forecastDate {
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+    color: #555;
+  }
+  .forecastIcon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 0.3rem;
+  }
+  .forecastTemp {
+    font-weight: 700;
+    font-size: 1.15rem;
+  }
+  .forecastDesc {
+    font-size: 0.85rem;
+    color: #444;
+    text-transform: capitalize;
+  }
+
+  /* Right card: extra info */
+  #rightCard {
+    flex: 0 1 280px;
+    background: rgba(255 255 255 / 0.15);
+    border-radius: 20px;
+    backdrop-filter: blur(15px);
+    box-shadow: 0 4px 30px rgba(255 255 255 / 0.2);
+    padding: 2rem 1.8rem;
+    font-size: 1rem;
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    user-select: none;
+  }
+  #rightCard h3 {
+    margin: 0 0 0.6rem 0;
+    font-weight: 700;
+    font-size: 1.2rem;
+    border-bottom: 1px solid rgba(0 0 0 / 0.2);
+    padding-bottom: 0.4rem;
+  }
+  .extraInfoItem {
+    display: flex;
+    justify-content: space-between;
+    color: #333;
+  }
+
+  /* Footer for spacing */
+  footer {
+    height: 60px;
+  }
+
+  /* Contrast classes for dark bg */
+  .contrast-light {
+    color: #fff !important;
+  }
+  .contrast-light #logo svg {
+    stroke: #fff !important;
+  }
+  .contrast-light #logo-text {
+    color: #fff !important;
+  }
+  .contrast-light input[type="search"], 
+  .contrast-light button, 
+  .contrast-light .detailItem, 
+  .contrast-light .forecastPill, 
+  .contrast-light #rightCard {
+    background: rgba(0 0 0 / 0.3) !important;
+    color: #eee !important;
+  }
+  .contrast-light input[type="search"]::placeholder {
+    color: #ccc !important;
+  }
+  .contrast-light button:hover, 
+  .contrast-light .forecastPill:hover {
+    background: rgba(0 0 0 / 0.5) !important;
+  }
+
+  /* Responsive */
+  @media (max-width: 720px) {
+    main {
+      flex-direction: column;
+      padding: 1rem 1rem;
+    }
+    #rightCard {
+      flex: 1 1 auto;
+      margin-top: 1.5rem;
+    }
+    #leftCard {
+      min-width: auto;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="bgCanvas"></canvas>
+  <header>
+    <div id="logo" aria-label="SkyScope logo" role="img" tabindex="0">
+      <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <circle cx="32" cy="32" r="14" stroke-width="3" />
+        <line x1="32" y1="4" x2="32" y2="16" stroke-width="3"/>
+        <line x1="32" y1="48" x2="32" y2="60" stroke-width="3"/>
+        <line x1="4" y1="32" x2="16" y2="32" stroke-width="3"/>
+        <line x1="48" y1="32" x2="60" y2="32" stroke-width="3"/>
+        <line x1="14" y1="14" x2="22" y2="22" stroke-width="3"/>
+        <line x1="42" y1="42" x2="50" y2="50" stroke-width="3"/>
+        <line x1="14" y1="50" x2="22" y2="42" stroke-width="3"/>
+        <line x1="42" y1="22" x2="50" y2="14" stroke-width="3"/>
+      </svg>
+      <span id="logo-text">SkyScope</span>
+    </div>
+    <div id="controls">
+      <input id="searchInput" type="search" placeholder="Enter city name" aria-label="Search city" />
+      <button id="locBtn" aria-label="Use my location">Use My Location</button>
+      <button id="unitToggle" aria-label="Toggle °C/°F">°C</button>
+    </div>
+  </header>
+  <main>
+    <section id="leftCard" aria-label="Current and forecast weather">
+      <div id="location" aria-live="polite" aria-atomic="true">Loading...</div>
+      <p id="currentTemp" aria-live="polite" aria-atomic="true">--°</p>
+      <p id="weatherDesc" aria-live="polite" aria-atomic="true">-</p>
+      <img id="currentIcon" src="" alt="" aria-hidden="true" />
+      <div id="currentDetails" role="list" aria-label="Current weather details">
+        <div class="detailItem" role="listitem">
+          <div class="detailLabel">Feels Like</div>
+          <div class="detailValue" id="feelsLike">--°</div>
+        </div>
+        <div class="detailItem" role="listitem">
+          <div class="detailLabel">Humidity</div>
+          <div class="detailValue" id="humidity">--%</div>
+        </div>
+        <div class="detailItem" role="listitem">
+          <div class="detailLabel">Wind Speed</div>
+          <div class="detailValue" id="windSpeed">-- m/s</div>
+        </div>
+      </div>
+      <div id="forecast" aria-label="4-day weather forecast"></div>
+    </section>
+    <aside id="rightCard" aria-label="Additional weather information">
+      <h3>Additional Info</h3>
+      <div class="extraInfoItem"><span>Local Time:</span><span id="localTime">--:-- --</span></div>
+      <div class="extraInfoItem"><span>Coordinates:</span><span id="coords">--, --</span></div>
+      <div class="extraInfoItem"><span>Sunrise:</span><span id="sunrise">--:--</span></div>
+      <div class="extraInfoItem"><span>Sunset:</span><span id="sunset">--:--</span></div>
+      <div class="extraInfoItem"><span>Pressure:</span><span id="pressure">-- hPa</span></div>
+      <div class="extraInfoItem"><span>Visibility:</span><span id="visibility">-- km</span></div>
+      <div class="extraInfoItem"><span>Cloud Cover:</span><span id="clouds">-- %</span></div>
+    </aside>
+  </main>
+  <footer></footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const KELVIN = 273.15;
+
+  const app = document.getElementById('app');
+  const bgCanvas = document.getElementById('bgCanvas');
+  const ctx = bgCanvas.getContext('2d');
+  let width, height;
+
+  const logoSvg = document.querySelector('#logo svg');
+  const logoText = document.getElementById('logo-text');
+
+  const searchInput = document.getElementById('searchInput');
+  const locBtn = document.getElementById('locBtn');
+  const unitToggle = document.getElementById('unitToggle');
+
+  const locationEl = document.getElementById('location');
+  const currentTempEl = document.getElementById('currentTemp');
+  const weatherDescEl = document.getElementById('weatherDesc');
+  const currentIconEl = document.getElementById('currentIcon');
+
+  const feelsLikeEl = document.getElementById('feelsLike');
+  const humidityEl = document.getElementById('humidity');
+  const windSpeedEl = document.getElementById('windSpeed');
+
+  const forecastEl = document.getElementById('forecast');
+
+  const localTimeEl = document.getElementById('localTime');
+  const coordsEl = document.getElementById('coords');
+  const sunriseEl = document.getElementById('sunrise');
+  const sunsetEl = document.getElementById('sunset');
+  const pressureEl = document.getElementById('pressure');
+  const visibilityEl = document.getElementById('visibility');
+  const cloudsEl = document.getElementById('clouds');
+
+  let units = 'metric'; // or imperial
+  let currentWeather = null;
+  let forecastData = null;
+  let timezoneOffsetSeconds = 0;
+
+  /* ------------------ Utils ------------------ */
+
+  // Convert temperature based on units
+  function formatTemp(kelvinOrCelsius) {
+    if (units === 'metric') {
+      return `${Math.round(kelvinOrCelsius)}°C`;
+    } else {
+      return `${Math.round(kelvinOrCelsius)}°F`;
+    }
+  }
+
+  // Convert m/s to mph if imperial
+  function formatWind(speed) {
+    if (units === 'metric') return `${speed.toFixed(1)} m/s`;
+    return `${(speed * 2.23694).toFixed(1)} mph`;
+  }
+
+  // Format timestamp (UTC seconds + offset) to HH:MM AM/PM
+  function formatTime(unixUtc, offsetSeconds) {
+    const date = new Date((unixUtc + offsetSeconds) * 1000);
+    let hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+    return `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  }
+
+  // Format date to day name and date (e.g. Tue 10 Aug)
+  function formatDate(unixUtc, offsetSeconds) {
+    const date = new Date((unixUtc + offsetSeconds) * 1000);
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${days[date.getUTCDay()]} ${date.getUTCDate()} ${months[date.getUTCMonth()]}`;
+  }
+
+  // Get icon URL from OWM
+  function getIconUrl(iconCode) {
+    return `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
+  }
+
+  /* ------------------ Background Gradients & Colors ------------------ */
+  const weatherGradientMap = {
+    Clear: 'linear-gradient(180deg, #FFEE93 0%, #FFC857 40%, #FF7A00 100%)',
+    Clouds: 'linear-gradient(180deg, #d1d5db 0%, #9ca3af 50%, #374151 100%)',
+    Rain: 'linear-gradient(180deg, #2a5368 0%, #4b6b8a 50%, #0b2545 100%)',
+    Drizzle: 'linear-gradient(180deg, #2a5368 0%, #4b6b8a 50%, #0b2545 100%)',
+    Thunderstorm: 'linear-gradient(180deg, #232526 0%, #414345 50%, #000814 100%)',
+    Snow: 'linear-gradient(180deg, #e0f7ff 0%, #bae6fd 50%, #9dd3f5 100%)',
+    Mist: 'linear-gradient(180deg, #bfc9d9 0%, #9aa6bd 50%, #6b7280 100%)',
+    Smoke: 'linear-gradient(180deg, #bfc9d9 0%, #9aa6bd 50%, #6b7280 100%)',
+    Haze: 'linear-gradient(180deg, #bfc9d9 0%, #9aa6bd 50%, #6b7280 100%)',
+    Dust: 'linear-gradient(180deg, #bfc9d9 0%, #9aa6bd 50%, #6b7280 100%)',
+    Fog: 'linear-gradient(180deg, #bfc9d9 0%, #9aa6bd 50%, #6b7280 100%)',
+    Sand: 'linear-gradient(180deg, #bfc9d9 0%, #9aa6bd 50%, #6b7280 100%)',
+    Ash: 'linear-gradient(180deg, #bfc9d9 0%, #9aa6bd 50%, #6b7280 100%)',
+    Squall: 'linear-gradient(180deg, #a3d5ff 0%, #eaf6ff 50%, #cde9ff 100%)',
+    Tornado: 'linear-gradient(180deg, #a3d5ff 0%, #eaf6ff 50%, #cde9ff 100%)',
+    Wind: 'linear-gradient(180deg, #a3d5ff 0%, #eaf6ff 50%, #cde9ff 100%)',
+  };
+
+  // Whether to use dark or light text for contrast
+  // true = light text on dark bg, false = dark text on light bg
+  function useLightContrast(weatherMain) {
+    return ['Clouds','Rain','Drizzle','Thunderstorm','Mist','Smoke','Haze','Dust','Fog','Sand','Ash'].includes(weatherMain);
+  }
+
+  // Set background gradient and text contrast classes
+  function applyTheme(weatherMain) {
+    const bg = weatherGradientMap[weatherMain] || weatherGradientMap.Clear;
+    document.body.style.background = bg;
+
+    if(useLightContrast(weatherMain)){
+      app.classList.add('contrast-light');
+    } else {
+      app.classList.remove('contrast-light');
+    }
+
+    // Logo stroke color & text color
+    if(useLightContrast(weatherMain)){
+      logoSvg.style.stroke = '#fff';
+      logoText.style.color = '#fff';
+    } else {
+      logoSvg.style.stroke = '#000';
+      logoText.style.color = '#000';
+    }
+  }
+
+  /* ------------------ Canvas Animations ------------------ */
+
+  // Clear / Sunny animation: sun with rays, dust particles, heat shimmer
+  class SunnyAnimation {
+    constructor(ctx, w, h){
+      this.ctx = ctx;
+      this.width = w;
+      this.height = h;
+      this.sunX = w * 0.8;
+      this.sunY = h * 0.2;
+      this.rayCount = 12;
+      this.rayAngle = (2 * Math.PI) / this.rayCount;
+      this.particles = [];
+      this.particleCount = 30;
+      for(let i=0; i<this.particleCount; i++){
+        this.particles.push({
+          x: this.sunX + (Math.random()*200 - 100),
+          y: this.sunY + (Math.random()*200 - 20),
+          radius: Math.random()*1.5 + 0.5,
+          alpha: Math.random() * 0.5 + 0.2,
+          speedY: Math.random()*0.3 + 0.05
+        });
+      }
+      this.rayRotation = 0;
+    }
+    update(){
+      this.rayRotation += 0.005;
+      this.particles.forEach(p => {
+        p.y -= p.speedY;
+        p.alpha -= 0.004;
+        if(p.alpha <= 0){
+          p.x = this.sunX + (Math.random()*200 - 100);
+          p.y = this.sunY + 200 + Math.random()*30;
+          p.alpha = Math.random() * 0.5 + 0.2;
+          p.radius = Math.random()*1.5 + 0.5;
+          p.speedY = Math.random()*0.3 + 0.05;
+        }
+      });
+    }
+    draw(){
+      const ctx = this.ctx;
+      ctx.clearRect(0,0,this.width,this.height);
+
+      // sun core
+      let sunGradient = ctx.createRadialGradient(this.sunX,this.sunY,20,this.sunX,this.sunY,60);
+      sunGradient.addColorStop(0, 'rgba(255, 200, 40, 1)');
+      sunGradient.addColorStop(1, 'rgba(255, 200, 40, 0)');
+      ctx.fillStyle = sunGradient;
+      ctx.beginPath();
+      ctx.arc(this.sunX, this.sunY, 60, 0, 2*Math.PI);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 230, 50, 1)';
+      ctx.beginPath();
+      ctx.arc(this.sunX, this.sunY, 30, 0, 2*Math.PI);
+      ctx.fill();
+
+      // sun rays
+      ctx.save();
+      ctx.translate(this.sunX, this.sunY);
+      ctx.rotate(this.rayRotation);
+      for(let i=0; i<this.rayCount; i++){
+        const angle = i * this.rayAngle;
+        ctx.rotate(this.rayAngle);
+        let alpha = 0.6 + 0.4 * Math.sin(this.rayRotation * 50 + i);
+        ctx.strokeStyle = `rgba(255, 210, 50, ${alpha.toFixed(2)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(40,0);
+        ctx.lineTo(70,0);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // dust particles
+      this.particles.forEach(p => {
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(255, 215, 100, ${p.alpha.toFixed(2)})`;
+        ctx.shadowColor = `rgba(255, 215, 100, ${p.alpha.toFixed(2)})`;
+        ctx.shadowBlur = 2;
+        ctx.arc(p.x, p.y, p.radius, 0, 2*Math.PI);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
+      // heat shimmer near bottom right
+      let shimmerHeight = 60;
+      let shimmerWidth = 140;
+      let shimmerX = this.width * 0.7;
+      let shimmerY = this.height * 0.8;
+      ctx.save();
+      ctx.translate(shimmerX, shimmerY);
+      ctx.globalAlpha = 0.12 + 0.08 * Math.sin(this.rayRotation * 80);
+      for(let i=0; i<5; i++){
+        let y = i * (shimmerHeight/5);
+        ctx.strokeStyle = `rgba(255, 230, 100, 0.2)`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.bezierCurveTo(20, y+10, 40, y-10, shimmerWidth, y+5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // Clouds animation: drifting puffy white clouds
+  class CloudsAnimation {
+    constructor(ctx, w, h){
+      this.ctx = ctx;
+      this.width = w;
+      this.height = h;
+      this.clouds = [];
+      this.cloudCount = 8;
+      for(let i=0; i<this.cloudCount; i++){
+        this.clouds.push({
+          x: Math.random() * w,
+          y: Math.random() * h * 0.5,
+          scale: 0.7 + Math.random() * 0.6,
+          speed: 0.2 + Math.random() * 0.3,
+          opacity: 0.3 + Math.random() * 0.4,
+        });
+      }
+    }
+    update(){
+      this.clouds.forEach(c => {
+        c.x += c.speed;
+        if(c.x - 150 > this.width){
+          c.x = -200;
+          c.y = Math.random() * this.height * 0.5;
+          c.scale = 0.7 + Math.random() * 0.6;
+          c.speed = 0.2 + Math.random() * 0.3;
+          c.opacity = 0.3 + Math.random() * 0.4;
+        }
+      });
+    }
+    draw(){
+      const ctx = this.ctx;
+      ctx.clearRect(0,0,this.width,this.height);
+      this.clouds.forEach(c => {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.scale(c.scale, c.scale);
+        ctx.fillStyle = `rgba(255,255,255,${c.opacity.toFixed(2)})`;
+        ctx.shadowColor = `rgba(255,255,255,${c.opacity.toFixed(2)})`;
+        ctx.shadowBlur = 15;
+        // simple cloud shape
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 40, 25, 0, 0, Math.PI*2);
+        ctx.ellipse(30, 5, 35, 28, 0, 0, Math.PI*2);
+        ctx.ellipse(60, 0, 40, 30, 0, 0, Math.PI*2);
+        ctx.ellipse(25, -15, 40, 25, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+  }
+
+  // Rain animation: falling raindrops with ripple effect
+  class RainAnimation {
+    constructor(ctx, w, h){
+      this.ctx = ctx;
+      this.width = w;
+      this.height = h;
+      this.drops = [];
+      this.dropCount = 150;
+      for(let i=0; i<this.dropCount; i++){
+        this.drops.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          length: 10 + Math.random() * 15,
+          speed: 3 + Math.random() * 4,
+          opacity: 0.3 + Math.random() * 0.5,
+          ripple: null, // ripple effect {x,y,radius,alpha}
+        });
+      }
+    }
+    update(){
+      this.drops.forEach(d => {
+        d.y += d.speed;
+        if(d.y > this.height){
+          if(!d.ripple){
+            d.ripple = {x: d.x, y: this.height, radius: 0, alpha: 0.5};
+          }
+          d.y = Math.random() * -20;
+          d.x = Math.random() * this.width;
+        }
+        if(d.ripple){
+          d.ripple.radius += 0.7;
+          d.ripple.alpha -= 0.02;
+          if(d.ripple.alpha <= 0) d.ripple = null;
+        }
+      });
+    }
+    draw(){
+      const ctx = this.ctx;
+      ctx.clearRect(0,0,this.width,this.height);
+      ctx.strokeStyle = 'rgba(200, 220, 255, 0.7)';
+      ctx.lineWidth = 1;
+      this.drops.forEach(d => {
+        // drop
+        ctx.beginPath();
+        ctx.moveTo(d.x, d.y);
+        ctx.lineTo(d.x, d.y + d.length);
+        ctx.stroke();
+
+        // ripple
+        if(d.ripple){
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(200,220,255,${d.ripple.alpha.toFixed(2)})`;
+          ctx.lineWidth = 1.5;
+          ctx.arc(d.ripple.x, d.ripple.y, d.ripple.radius, 0, 2*Math.PI);
+          ctx.stroke();
+          ctx.strokeStyle = 'rgba(200, 220, 255, 0.7)';
+        }
+      });
+    }
+  }
+
+  // Thunderstorm animation: rain + occasional lightning flashes
+  class ThunderstormAnimation extends RainAnimation {
+    constructor(ctx, w, h){
+      super(ctx, w, h);
+      this.flashTimer = 0;
+      this.isFlashing = false;
+    }
+    update(){
+      super.update();
+      this.flashTimer--;
+      if(this.flashTimer <= 0){
+        this.isFlashing = Math.random() < 0.2;
+        this.flashTimer = 40 + Math.floor(Math.random()*150);
+      }
+    }
+    draw(){
+      super.draw();
+      if(this.isFlashing){
+        this.ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+      }
+    }
+  }
+
+  // Snow animation: drifting snowflakes
+  class SnowAnimation {
+    constructor(ctx, w, h){
+      this.ctx = ctx;
+      this.width = w;
+      this.height = h;
+      this.flakes = [];
+      this.flakeCount = 100;
+      for(let i=0; i<this.flakeCount; i++){
+        this.flakes.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          radius: 1 + Math.random()*2.5,
+          speedY: 0.5 + Math.random()*1.2,
+          speedX: Math.random()*0.4 - 0.2,
+          angle: Math.random()*Math.PI*2,
+          angularSpeed: 0.01 + Math.random()*0.03,
+          opacity: 0.4 + Math.random()*0.6
+        });
+      }
+    }
+    update(){
+      this.flakes.forEach(f => {
+        f.y += f.speedY;
+        f.x += f.speedX;
+        f.angle += f.angularSpeed;
+        if(f.y > this.height) {
+          f.y = 0;
+          f.x = Math.random() * this.width;
+        }
+        if(f.x > this.width) f.x = 0;
+        else if(f.x < 0) f.x = this.width;
+      });
+    }
+    draw(){
+      const ctx = this.ctx;
+      ctx.clearRect(0,0,this.width,this.height);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      this.flakes.forEach(f => {
+        ctx.save();
+        ctx.translate(f.x, f.y);
+        ctx.rotate(f.angle);
+        ctx.globalAlpha = f.opacity;
+        ctx.beginPath();
+        ctx.moveTo(0, -f.radius);
+        for(let i=0; i<6; i++){
+          ctx.lineTo(0, -f.radius*0.5);
+          ctx.rotate(Math.PI / 3);
+          ctx.lineTo(0, -f.radius);
+          ctx.rotate(Math.PI / 3);
+        }
+        ctx.fill();
+        ctx.restore();
+      });
+      // soft white fog overlay at bottom
+      let gradient = ctx.createLinearGradient(0,this.height*0.7,0,this.height);
+      gradient.addColorStop(0, 'rgba(255,255,255,0)');
+      gradient.addColorStop(1, 'rgba(255,255,255,0.8)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, this.height*0.7, this.width, this.height*0.3);
+    }
+  }
+
+  // Wind animation: fast horizontal streaks + tumbling debris
+  class WindAnimation {
+    constructor(ctx, w, h){
+      this.ctx = ctx;
+      this.width = w;
+      this.height = h;
+      this.streaks = [];
+      this.debris = [];
+      this.streakCount = 60;
+      this.debrisCount = 20;
+      for(let i=0; i<this.streakCount; i++){
+        this.streaks.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          length: 30 + Math.random() * 50,
+          speed: 6 + Math.random() * 4,
+          opacity: 0.2 + Math.random() * 0.3,
+          width: 1 + Math.random()*2,
+          offsetY: Math.random()*10 - 5,
+        });
+      }
+      for(let i=0; i<this.debrisCount; i++){
+        this.debris.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          size: 5 + Math.random()*8,
+          speed: 5 + Math.random()*3,
+          angle: Math.random() * Math.PI * 2,
+          angularSpeed: 0.05 * (Math.random() > 0.5 ? 1 : -1),
+          opacity: 0.3 + Math.random()*0.5,
+        });
+      }
+    }
+    update(){
+      this.streaks.forEach(s => {
+        s.x += s.speed;
+        if(s.x - s.length > this.width){
+          s.x = -s.length;
+          s.y = Math.random() * this.height;
+          s.speed = 6 + Math.random()*4;
+          s.opacity = 0.2 + Math.random()*0.3;
+          s.width = 1 + Math.random()*2;
+          s.offsetY = Math.random()*10 - 5;
+        }
+      });
+      this.debris.forEach(d => {
+        d.x += d.speed;
+        d.angle += d.angularSpeed;
+        if(d.x - d.size > this.width){
+          d.x = -d.size;
+          d.y = Math.random() * this.height;
+          d.speed = 5 + Math.random()*3;
+          d.opacity = 0.3 + Math.random()*0.5;
+          d.size = 5 + Math.random()*8;
+        }
+      });
+    }
+    draw(){
+      const ctx = this.ctx;
+      ctx.clearRect(0,0,this.width,this.height);
+      // draw streaks
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineCap = 'round';
+      this.streaks.forEach(s => {
+        ctx.lineWidth = s.width;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y + s.offsetY);
+        ctx.lineTo(s.x - s.length, s.y + s.offsetY);
+        ctx.stroke();
+      });
+      // draw debris rectangles
+      this.debris.forEach(d => {
+        ctx.save();
+        ctx.translate(d.x, d.y);
+        ctx.rotate(d.angle);
+        ctx.fillStyle = `rgba(255, 255, 255, ${d.opacity.toFixed(2)})`;
+        ctx.fillRect(-d.size/2, -d.size/4, d.size, d.size/2);
+        ctx.restore();
+      });
+    }
+  }
+
+  // Mist / Fog animation: soft floating semi-transparent clouds
+  class MistAnimation {
+    constructor(ctx, w, h){
+      this.ctx = ctx;
+      this.width = w;
+      this.height = h;
+      this.mists = [];
+      this.mistCount = 6;
+      for(let i=0; i<this.mistCount; i++){
+        this.mists.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          radius: 70 + Math.random()*40,
+          speedX: 0.2 + Math.random()*0.15,
+          alpha: 0.15 + Math.random()*0.15,
+          alphaDir: 1,
+        });
+      }
+    }
+    update(){
+      this.mists.forEach(m => {
+        m.x += m.speedX;
+        if(m.x - m.radius > this.width){
+          m.x = -m.radius * 2;
+          m.y = Math.random() * this.height * 0.8 + this.height*0.1;
+        }
+        m.alpha += 0.005 * m.alphaDir;
+        if(m.alpha >= 0.3) m.alphaDir = -1;
+        else if(m.alpha <= 0.1) m.alphaDir = 1;
+      });
+    }
+    draw(){
+      const ctx = this.ctx;
+      ctx.clearRect(0,0,this.width,this.height);
+      this.mists.forEach(m => {
+        const grad = ctx.createRadialGradient(m.x,m.y,m.radius*0.2,m.x,m.y,m.radius);
+        grad.addColorStop(0, `rgba(230,230,230,${m.alpha.toFixed(2)})`);
+        grad.addColorStop(1, 'rgba(230,230,230,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.radius, 0, Math.PI*2);
+        ctx.fill();
+      });
+    }
+  }
+
+  /* --------------- Animation Selection --------------- */
+  let animationInstance = null;
+  function createAnimation(weatherMain){
+    if(animationInstance) {
+      animationInstance = null;
+      ctx.clearRect(0,0,width,height);
+    }
+    switch(weatherMain){
+      case 'Clear': return new SunnyAnimation(ctx, width, height);
+      case 'Clouds': return new CloudsAnimation(ctx, width, height);
+      case 'Rain': case 'Drizzle': return new RainAnimation(ctx, width, height);
+      case 'Thunderstorm': return new ThunderstormAnimation(ctx, width, height);
+      case 'Snow': return new SnowAnimation(ctx, width, height);
+      case 'Mist': case 'Fog': case 'Haze': case 'Smoke': case 'Dust': case 'Sand': case 'Ash':
+        return new MistAnimation(ctx, width, height);
+      case 'Wind':
+        return new WindAnimation(ctx, width, height);
+      default:
+        return new SunnyAnimation(ctx, width, height);
+    }
+  }
+
+  /* --------------- Resize canvas --------------- */
+  function resizeCanvas(){
+    width = window.innerWidth;
+    height = window.innerHeight;
+    bgCanvas.width = width * devicePixelRatio;
+    bgCanvas.height = height * devicePixelRatio;
+    bgCanvas.style.width = width + 'px';
+    bgCanvas.style.height = height + 'px';
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    if(animationInstance && animationInstance.width !== width){
+      animationInstance.width = width;
+      animationInstance.height = height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  /* --------------- Render loop --------------- */
+  function render(){
+    if(animationInstance){
+      animationInstance.update();
+      animationInstance.draw();
+    }
+    requestAnimationFrame(render);
+  }
+
+  /* --------------- Fetch weather data --------------- */
+  async function fetchWeatherByCity(city){
+    try {
+      locationEl.textContent = 'Searching...';
+      const resCurrent = await fetch(`http://localhost:3000/weather/current?city=${encodeURIComponent(city)}`);
+      if(!resCurrent.ok) throw new Error('City not found');
+      const dataCurrent = await resCurrent.json();
+
+      const resForecast = await fetch(`http://localhost:3000/weather/forecast?city=${encodeURIComponent(city)}`);
+      if(!resForecast.ok) throw new Error('Forecast not found');
+      const dataForecast = await resForecast.json();
+
+      updateUI(dataCurrent, dataForecast);
+    } catch(e){
+      alert('Error fetching weather: ' + e.message);
+      locationEl.textContent = 'Location not found';
+      resetUI();
+    }
+  }
+
+  async function fetchWeatherByCoords(lat, lon){
+    try {
+      locationEl.textContent = 'Getting location weather...';
+      const resCurrent = await fetch(`http://localhost:3000/weather/currentByCoords?lat=${lat}&lon=${lon}`);
+      if(!resCurrent.ok) throw new Error('Location weather not found');
+      const dataCurrent = await resCurrent.json();
+
+      const resForecast = await fetch(`http://localhost:3000/weather/forecastByCoords?lat=${lat}&lon=${lon}`);
+      if(!resForecast.ok) throw new Error('Forecast not found');
+      const dataForecast = await resForecast.json();
+
+      updateUI(dataCurrent, dataForecast);
+    } catch(e){
+      alert('Error fetching weather: ' + e.message);
+      locationEl.textContent = 'Unable to get weather for your location';
+      resetUI();
+    }
+  }
+
+  /* --------------- Update UI with data --------------- */
+  function updateUI(current, forecast){
+    currentWeather = current;
+    forecastData = forecast;
+    timezoneOffsetSeconds = current.timezone;
+
+    applyTheme(current.weather[0].main);
+
+    locationEl.textContent = `${current.name}, ${current.sys.country}`;
+    currentTempEl.textContent = `${Math.round(current.main.temp)}°${units === 'metric' ? 'C' : 'F'}`;
+    weatherDescEl.textContent = current.weather[0].description;
+    currentIconEl.src = getIconUrl(current.weather[0].icon);
+    currentIconEl.alt = current.weather[0].description;
+
+    feelsLikeEl.textContent = `${Math.round(current.main.feels_like)}°${units === 'metric' ? 'C' : 'F'}`;
+    humidityEl.textContent = `${current.main.humidity}%`;
+    windSpeedEl.textContent = formatWind(current.wind.speed);
+
+    coordsEl.textContent = `${current.coord.lat.toFixed(2)}, ${current.coord.lon.toFixed(2)}`;
+    localTimeEl.textContent = formatTime(Math.floor(Date.now()/1000), timezoneOffsetSeconds);
+    sunriseEl.textContent = formatTime(current.sys.sunrise, timezoneOffsetSeconds);
+    sunsetEl.textContent = formatTime(current.sys.sunset, timezoneOffsetSeconds);
+    pressureEl.textContent = `${current.main.pressure} hPa`;
+    visibilityEl.textContent = `${(current.visibility/1000).toFixed(1)} km`;
+    cloudsEl.textContent = `${current.clouds.all} %`;
+
+    updateForecastUI(forecast.list);
+
+    // Restart animation for new weather
+    animationInstance = createAnimation(current.weather[0].main);
+  }
+
+  function resetUI(){
+    currentTempEl.textContent = '--°';
+    weatherDescEl.textContent = '-';
+    currentIconEl.src = '';
+    currentIconEl.alt = '';
+
+    feelsLikeEl.textContent = '--°';
+    humidityEl.textContent = '--%';
+    windSpeedEl.textContent = '-- m/s';
+
+    coordsEl.textContent = '--, --';
+    localTimeEl.textContent = '--:-- --';
+    sunriseEl.textContent = '--:--';
+    sunsetEl.textContent = '--:--';
+    pressureEl.textContent = '-- hPa';
+    visibilityEl.textContent = '-- km';
+    cloudsEl.textContent = '-- %';
+
+    forecastEl.innerHTML = '';
+    animationInstance = null;
+    ctx.clearRect(0,0,width,height);
+  }
+
+  /* --------------- Forecast UI --------------- */
+  function updateForecastUI(forecastList){
+    // Forecast API returns data every 3h. We want daily forecast at noon (12:00)
+    // Get the 4 next days after today
+    let daily = {};
+    forecastList.forEach(item => {
+      const dt = item.dt + timezoneOffsetSeconds;
+      const dateObj = new Date(dt * 1000);
+      const day = dateObj.getUTCDate();
+      const hour = dateObj.getUTCHours();
+      // pick data at around 12:00 (noon)
+      if(hour === 12){
+        daily[day] = item;
+      }
+    });
+
+    // Get next 4 days keys sorted
+    const daysKeys = Object.keys(daily).sort((a,b) => a-b).slice(0,4);
+
+    forecastEl.innerHTML = daysKeys.map(day => {
+      const d = daily[day];
+      if(!d) return '';
+      return `
+      <div class="forecastPill" tabindex="0" aria-label="Forecast for ${formatDate(d.dt, timezoneOffsetSeconds)}: ${d.weather[0].description}, temperature ${Math.round(d.main.temp)}°${units === 'metric' ? 'C' : 'F'}">
+        <div class="forecastDay">${formatDate(d.dt, timezoneOffsetSeconds).split(' ')[0]}</div>
+        <div class="forecastDate">${formatDate(d.dt, timezoneOffsetSeconds).split(' ').slice(1).join(' ')}</div>
+        <img class="forecastIcon" src="${getIconUrl(d.weather[0].icon)}" alt="${d.weather[0].description}" />
+        <div class="forecastTemp">${Math.round(d.main.temp)}°${units === 'metric' ? 'C' : 'F'}</div>
+        <div class="forecastDesc">${d.weather[0].description}</div>
+      </div>`;
+    }).join('');
+  }
+
+  /* --------------- Event handlers --------------- */
+  searchInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){
+      const city = searchInput.value.trim();
+      if(city.length > 0){
+        fetchWeatherByCity(city);
+      }
+    }
+  });
+
+  locBtn.addEventListener('click', () => {
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(pos => {
+        fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
+      }, err => {
+        alert('Geolocation denied or unavailable.');
+      });
+    } else {
+      alert('Geolocation not supported by your browser.');
+    }
+  });
+
+  unitToggle.addEventListener('click', () => {
+    units = units === 'metric' ? 'imperial' : 'metric';
+    unitToggle.textContent = units === 'metric' ? '°C' : '°F';
+
+    // Refetch weather for current displayed city or coords
+    if(currentWeather){
+      const city = currentWeather.name;
+      if(city){
+        fetchWeatherByCity(city);
+      }
+    }
+  });
+
+  // Update local time every minute
+  setInterval(() => {
+    if(currentWeather){
+      localTimeEl.textContent = formatTime(Math.floor(Date.now()/1000), timezoneOffsetSeconds);
+    }
+  }, 60000);
+
+  /* --------------- Initialization --------------- */
+  function init(){
+    resizeCanvas();
+
+    // Default: load weather for your location or fallback to a default city
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(pos => {
+        fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
+      }, () => {
+        fetchWeatherByCity('New York');
+      });
+    } else {
+      fetchWeatherByCity('New York');
+    }
+
+    render();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
